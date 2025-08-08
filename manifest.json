@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "YouTube Transcript Extractor",
+  "version": "1.0.0",
+  "description": "Extract and download transcripts from YouTube videos",
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.youtube.com/watch*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Extract YouTube Transcript"
+  }
+}
