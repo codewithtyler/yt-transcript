@@ -38,10 +38,12 @@ class YouTubeTranscriptExtractor {
   // Find the transcript button
   async findTranscriptButton() {
     const transcriptSelectors = [
+      'yt-button-shape button[aria-label*="transcript" i]',
       'button[aria-label*="transcript" i]',
       'button[aria-label*="Show transcript"]',
       '[role="button"][aria-label*="transcript" i]',
-      'ytd-toggle-button-renderer button[aria-label*="transcript" i]'
+      'ytd-toggle-button-renderer button[aria-label*="transcript" i]',
+      'yt-button-shape[aria-label*="transcript" i]'
     ];
 
     let transcriptButton = null;
@@ -327,5 +329,38 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         error: error.message
       });
     }
+  }
+  
+  if (request.action === 'closeTranscriptPanel') {
+    try {
+      console.log('Attempting to close transcript panel...');
+      
+      // Look for the specific close button structure you found
+      const closeButton = document.querySelector('button[aria-label="Close transcript"]');
+      
+      if (closeButton) {
+        console.log('Found "Close transcript" button, clicking...');
+        closeButton.click();
+        sendResponse({ success: true });
+        return true;
+      }
+      
+      // Fallback: look for any close button in transcript area
+      const fallbackCloseButton = document.querySelector('yt-button-shape button[aria-label*="close" i], ytd-transcript-renderer button[aria-label*="close" i]');
+      
+      if (fallbackCloseButton) {
+        console.log('Found fallback close button, clicking...');
+        fallbackCloseButton.click();
+        sendResponse({ success: true });
+        return true;
+      }
+      
+      console.log('No close button found');
+      sendResponse({ success: false, error: 'Close button not found' });
+    } catch (error) {
+      console.error('Error closing transcript panel:', error);
+      sendResponse({ success: false, error: error.message });
+    }
+    return true;
   }
 });
