@@ -35,45 +35,91 @@ class YouTubeTranscriptExtractor {
     });
   }
 
-  // Find and click the transcript button
-  async openTranscriptPanel() {
-    try {
-      // Look for the "Show transcript" button - YouTube uses different selectors
-      const transcriptSelectors = [
-        'button[aria-label*="transcript" i]',
-        'button[aria-label*="Show transcript"]',
-        '[role="button"][aria-label*="transcript" i]',
-        'ytd-toggle-button-renderer button[aria-label*="transcript" i]'
-      ];
+  // Find the transcript button
+  async findTranscriptButton() {
+    const transcriptSelectors = [
+      'button[aria-label*="transcript" i]',
+      'button[aria-label*="Show transcript"]',
+      '[role="button"][aria-label*="transcript" i]',
+      'ytd-toggle-button-renderer button[aria-label*="transcript" i]'
+    ];
 
-      let transcriptButton = null;
+    let transcriptButton = null;
+    
+    for (const selector of transcriptSelectors) {
+      transcriptButton = document.querySelector(selector);
+      if (transcriptButton) break;
+    }
+
+    if (!transcriptButton) {
+      // Try to find it in the description area
+      await this.waitForElement('#description', 5000);
       
       for (const selector of transcriptSelectors) {
         transcriptButton = document.querySelector(selector);
         if (transcriptButton) break;
       }
+    }
 
-      if (!transcriptButton) {
-        // Try to find it in the description area
-        await this.waitForElement('#description', 5000);
+    return transcriptButton;
+  }
+
+  // Wait for transcript segments to load with actual content
+  waitForTranscriptSegments() {
+    return new Promise((resolve, reject) => {
+      const maxWaitTime = 10000; // 10 seconds max
+      const startTime = Date.now();
+      
+      const checkForSegments = () => {
+        const segments = document.querySelectorAll('ytd-transcript-segment-renderer');
         
-        for (const selector of transcriptSelectors) {
-          transcriptButton = document.querySelector(selector);
-          if (transcriptButton) break;
+        // Check if we have segments with actual text content
+        if (segments.length > 0) {
+          let segmentsWithText = 0;
+          segments.forEach(segment => {
+            const text = segment.textContent.trim();
+            if (text && text.length > 0) {
+              segmentsWithText++;
+            }
+          });
+          
+          // If we have at least 3 segments with text, or it's been 3+ seconds with some content
+          if (segmentsWithText >= 3 || (segmentsWithText > 0 && Date.now() - startTime > 3000)) {
+            resolve(segments);
+            return;
+          }
         }
-      }
+        
+        // Check timeout
+        if (Date.now() - startTime > maxWaitTime) {
+          reject(new Error('Timeout waiting for transcript segments to load'));
+          return;
+        }
+        
+        // Continue checking
+        setTimeout(checkForSegments, 200);
+      };
+      
+      checkForSegments();
+    });
+  }
 
+  // Open transcript panel and wait for content to load
+  async openAndWaitForTranscript() {
+    try {
+      const transcriptButton = await this.findTranscriptButton();
+      
       if (!transcriptButton) {
         throw new Error('Transcript button not found. This video may not have a transcript available.');
       }
 
-      // Click the transcript button
+      // Click to open
       transcriptButton.click();
       
-      // Wait for the transcript panel to load
-      await this.waitForElement('ytd-transcript-segment-renderer, .ytd-transcript-segment-renderer', 5000);
+      // Wait for segments to load with content
+      await this.waitForTranscriptSegments();
       
-      return true;
+      return transcriptButton; // Return button reference so we can close it later
     } catch (error) {
       console.error('Error opening transcript panel:', error);
       throw error;
@@ -81,23 +127,9 @@ class YouTubeTranscriptExtractor {
   }
 
   // Extract transcript text from the opened panel
-  async extractTranscriptText() {
+  async extractTranscriptText(includeTimestamps = false) {
     try {
-      // Wait a bit for the transcript to fully load
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      const transcriptSelectors = [
-        'ytd-transcript-segment-renderer',
-        '.ytd-transcript-segment-renderer',
-        '[role="button"][tabindex="0"]' // Fallback selector for transcript segments
-      ];
-
-      let segments = null;
-      
-      for (const selector of transcriptSelectors) {
-        segments = document.querySelectorAll(selector);
-        if (segments.length > 0) break;
-      }
+      const segments = document.querySelectorAll('ytd-transcript-segment-renderer');
 
       if (!segments || segments.length === 0) {
         throw new Error('Transcript segments not found in the panel.');
@@ -153,20 +185,27 @@ class YouTubeTranscriptExtractor {
     }
   }
 
-  // Main extraction method
-  async extractTranscript() {
+  // Main extraction method with open/close
+  async extractTranscript(includeTimestamps = false) {
     if (this.isExtracting) {
       throw new Error('Extraction already in progress');
     }
 
     this.isExtracting = true;
+    let transcriptButton = null;
     
     try {
       console.log('Opening transcript panel...');
-      await this.openTranscriptPanel();
+      transcriptButton = await this.openAndWaitForTranscript();
       
       console.log('Extracting transcript text...');
-      const transcript = await this.extractTranscriptText();
+      const transcript = await this.extractTranscriptText(includeTimestamps);
+      
+      // Close the transcript panel
+      if (transcriptButton) {
+        console.log('Closing transcript panel...');
+        transcriptButton.click();
+      }
       
       this.transcript = transcript;
       this.isExtracting = false;
@@ -175,6 +214,15 @@ class YouTubeTranscriptExtractor {
       return transcript;
       
     } catch (error) {
+      // Make sure to close panel if something went wrong
+      if (transcriptButton) {
+        try {
+          transcriptButton.click();
+        } catch (closeError) {
+          console.warn('Could not close transcript panel:', closeError);
+        }
+      }
+      
       this.isExtracting = false;
       console.error('Transcript extraction failed:', error);
       throw error;
@@ -196,33 +244,37 @@ class YouTubeTranscriptExtractor {
   }
 
   // Format transcript as plain text
-  formatAsText() {
+  formatAsText(includeTimestamps = false) {
     if (!this.transcript.length) return '';
     
-    const videoInfo = this.getVideoInfo();
-    let output = `YouTube Transcript\n`;
-    output += `Title: ${videoInfo.title}\n`;
-    output += `URL: ${videoInfo.url}\n`;
-    output += `Extracted: ${new Date(videoInfo.extractedAt).toLocaleString()}\n\n`;
+    let output = '';
     
     this.transcript.forEach(segment => {
-      if (segment.timestamp) {
+      if (includeTimestamps && segment.timestamp) {
         output += `[${segment.timestamp}] ${segment.text}\n`;
       } else {
         output += `${segment.text}\n`;
       }
     });
     
-    return output;
+    return output.trim();
   }
 
-  // Format transcript as JSON
-  formatAsJSON() {
-    const videoInfo = this.getVideoInfo();
-    return JSON.stringify({
-      videoInfo,
-      transcript: this.transcript
-    }, null, 2);
+  // Format transcript as markdown  
+  formatAsMarkdown(includeTimestamps = false) {
+    if (!this.transcript.length) return '';
+    
+    let output = '';
+    
+    this.transcript.forEach(segment => {
+      if (includeTimestamps && segment.timestamp) {
+        output += `**[${segment.timestamp}]** ${segment.text}\n\n`;
+      } else {
+        output += `${segment.text}\n\n`;
+      }
+    });
+    
+    return output.trim();
   }
 }
 
@@ -232,7 +284,9 @@ window.youtubeTranscriptExtractor = new YouTubeTranscriptExtractor();
 // Listen for messages from popup
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractTranscript') {
-    window.youtubeTranscriptExtractor.extractTranscript()
+    const includeTimestamps = request.includeTimestamps || false;
+    
+    window.youtubeTranscriptExtractor.extractTranscript(includeTimestamps)
       .then(transcript => {
         sendResponse({
           success: true,
@@ -253,13 +307,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   
   if (request.action === 'getFormattedTranscript') {
     const format = request.format || 'text';
+    const includeTimestamps = request.includeTimestamps || false;
     let formattedTranscript = '';
     
     try {
-      if (format === 'json') {
-        formattedTranscript = window.youtubeTranscriptExtractor.formatAsJSON();
+      if (format === 'markdown') {
+        formattedTranscript = window.youtubeTranscriptExtractor.formatAsMarkdown(includeTimestamps);
       } else {
-        formattedTranscript = window.youtubeTranscriptExtractor.formatAsText();
+        formattedTranscript = window.youtubeTranscriptExtractor.formatAsText(includeTimestamps);
       }
       
       sendResponse({

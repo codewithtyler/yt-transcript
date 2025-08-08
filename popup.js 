@@ -59,13 +59,6 @@ class TranscriptExtractorPopup {
     document.getElementById('downloadBtn').addEventListener('click', () => {
       this.downloadTranscript();
     });
-
-    // Format change
-    document.querySelectorAll('input[name="format"]').forEach(radio => {
-      radio.addEventListener('change', () => {
-        this.updatePreview();
-      });
-    });
   }
 
   async extractTranscript() {
@@ -76,13 +69,17 @@ class TranscriptExtractorPopup {
       // Update UI to show loading state
       extractBtn.disabled = true;
       extractBtn.innerHTML = '<span class="loading-spinner"></span> Extracting...';
-      this.showStatus('Opening transcript panel...', 'loading');
+      this.showStatus('Extracting transcript...', 'loading');
+      
+      // Get timestamp preference
+      const includeTimestamps = document.getElementById('includeTimestamps')?.checked || false;
       
       // Send message to content script
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       
       const response = await chrome.tabs.sendMessage(tab.id, {
-        action: 'extractTranscript'
+        action: 'extractTranscript',
+        includeTimestamps: includeTimestamps
       });
 
       if (response.success) {
@@ -90,8 +87,7 @@ class TranscriptExtractorPopup {
         this.currentVideoInfo = response.videoInfo;
         
         this.showStatus(`Successfully extracted ${response.transcript.length} transcript segments!`, 'success');
-        this.showFormatOptions();
-        this.updatePreview();
+        this.showOptions();
         this.showExportControls();
         
         extractBtn.textContent = 'Extract Again';
@@ -124,42 +120,30 @@ class TranscriptExtractorPopup {
     }
   }
 
-  showFormatOptions() {
-    document.getElementById('formatOptions').style.display = 'block';
+  showOptions() {
+    const optionsElement = document.getElementById('options');
+    if (optionsElement) {
+      optionsElement.style.display = 'block';
+    }
   }
 
   showExportControls() {
-    document.getElementById('exportControls').style.display = 'block';
-  }
-
-  updatePreview() {
-    if (!this.currentTranscript) return;
-
-    const format = document.querySelector('input[name="format"]:checked').value;
-    const preview = document.getElementById('transcriptPreview');
-    
-    // Get formatted content from content script
-    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
-      chrome.tabs.sendMessage(tabs[0].id, {
-        action: 'getFormattedTranscript',
-        format: format
-      }, (response) => {
-        if (response && response.success) {
-          preview.textContent = response.formattedTranscript;
-          preview.style.display = 'block';
-        }
-      });
-    });
+    const exportElement = document.getElementById('exportControls');
+    if (exportElement) {
+      exportElement.style.display = 'block';
+    }
   }
 
   async copyToClipboard() {
     try {
-      const format = document.querySelector('input[name="format"]:checked').value;
+      const format = document.querySelector('input[name="format"]:checked')?.value || 'text';
+      const includeTimestamps = document.getElementById('includeTimestamps')?.checked || false;
       
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: 'getFormattedTranscript',
-        format: format
+        format: format,
+        includeTimestamps: includeTimestamps
       });
 
       if (response && response.success) {
@@ -176,12 +160,14 @@ class TranscriptExtractorPopup {
 
   async downloadTranscript() {
     try {
-      const format = document.querySelector('input[name="format"]:checked').value;
+      const format = document.querySelector('input[name="format"]:checked')?.value || 'text';
+      const includeTimestamps = document.getElementById('includeTimestamps')?.checked || false;
       
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: 'getFormattedTranscript',
-        format: format
+        format: format,
+        includeTimestamps: includeTimestamps
       });
 
       if (response && response.success) {
@@ -191,10 +177,7 @@ class TranscriptExtractorPopup {
         let extension;
         let mimeType;
         
-        if (format === 'json') {
-          extension = 'json';
-          mimeType = 'application/json';
-        } else if (format === 'markdown') {
+        if (format === 'markdown') {
           extension = 'md';
           mimeType = 'text/markdown';
         } else {

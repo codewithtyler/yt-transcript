@@ -120,7 +120,8 @@
             background: #f8f9fa;
         }
 
-        .format-option input[type="radio"] {
+        .format-option input[type="radio"],
+        .format-option input[type="checkbox"] {
             margin-right: 10px;
         }
 
@@ -163,18 +164,7 @@
         }
 
         .transcript-preview {
-            background: white;
-            border: 1px solid #e1e5e9;
-            border-radius: 6px;
-            padding: 12px;
-            max-height: 200px;
-            overflow-y: auto;
-            font-size: 12px;
-            line-height: 1.4;
-            color: #1a1a1a;
-            white-space: pre-wrap;
             display: none;
-            margin-bottom: 12px;
         }
 
         .loading-spinner {
