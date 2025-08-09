@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "description": "YouTube Transcript Extractor Chrome Extension",
   "scripts": {
-    "build": "powershell -Command \"if (Test-Path dist) { Remove-Item -Path dist\\* -Recurse -Force }; if (-not (Test-Path dist)) { New-Item -ItemType Directory -Path dist }; Copy-Item manifest.json,popup.html,popup.js,content.js -Destination dist\"",
+    "build": "powershell -ExecutionPolicy Bypass -File build.ps1",
     "clean": "powershell -Command \"if (Test-Path dist) { Remove-Item -Path dist\\* -Recurse -Force }\""
   },
   "keywords": ["chrome-extension", "youtube", "transcript", "extractor"],

@@ -16,6 +16,13 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Extract YouTube Transcript"
+    "default_title": "Extract YouTube Transcript",
+    "default_icon": "yt-transcript-logo.png"
+  },
+  "icons": {
+    "16": "yt-transcript-logo.png",
+    "32": "yt-transcript-logo.png",
+    "48": "yt-transcript-logo.png",
+    "128": "yt-transcript-logo.png"
   }
 }
