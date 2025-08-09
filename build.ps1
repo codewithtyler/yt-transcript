@@ -4,7 +4,8 @@ $sourceFiles = @(
     "popup.html",
     "popup.js",
     "content.js",
-    "yt-transcript-logo.png"
+    "yt-transcript-logo.png",
+    "privacy-policy.md"
 )
 
 $distPath = "dist"
