@@ -10,7 +10,7 @@ class TranscriptExtractorPopup {
   async init() {
     // Check if we're on a YouTube video page
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-    
+
     if (!tab.url.includes('youtube.com/watch')) {
       this.showNotYouTubePage();
       return;
@@ -29,15 +29,15 @@ class TranscriptExtractorPopup {
   async loadVideoInfo() {
     try {
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
+
       // Extract video info from URL and page title
       const videoId = new URLSearchParams(new URL(tab.url).search).get('v');
       const title = tab.title.replace(' - YouTube', '');
-      
+
       document.getElementById('videoTitle').textContent = title;
       document.getElementById('videoUrl').textContent = tab.url;
       document.getElementById('videoInfo').style.display = 'block';
-      
+
     } catch (error) {
       console.error('Error loading video info:', error);
       this.showStatus('Error loading video information', 'error');
@@ -64,19 +64,19 @@ class TranscriptExtractorPopup {
   async extractTranscript() {
     const extractBtn = document.getElementById('extractBtn');
     const originalText = extractBtn.textContent;
-    
+
     try {
       // Update UI to show loading state
       extractBtn.disabled = true;
       extractBtn.innerHTML = '<span class="loading-spinner"></span> Extracting...';
       this.showStatus('Extracting transcript...', 'loading');
-      
+
       // Get timestamp preference
       const includeTimestamps = document.getElementById('includeTimestamps')?.checked || false;
-      
+
       // Send message to content script
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-      
+
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: 'extractTranscript',
         includeTimestamps: includeTimestamps
@@ -85,16 +85,16 @@ class TranscriptExtractorPopup {
       if (response.success) {
         this.currentTranscript = response.transcript;
         this.currentVideoInfo = response.videoInfo;
-        
+
         this.showStatus(`Successfully extracted ${response.transcript.length} transcript segments!`, 'success');
         this.showOptions();
         this.showExportControls();
-        
+
         extractBtn.textContent = 'Extract Again';
       } else {
         throw new Error(response.error);
       }
-      
+
     } catch (error) {
       console.error('Extraction failed:', error);
       this.showStatus(`Failed to extract transcript: ${error.message}`, 'error');
@@ -111,7 +111,7 @@ class TranscriptExtractorPopup {
     statusElement.textContent = message;
     statusElement.className = `status ${type}`;
     statusElement.style.display = 'block';
-    
+
     // Auto-hide success messages after 3 seconds
     if (type === 'success') {
       setTimeout(() => {
@@ -138,7 +138,7 @@ class TranscriptExtractorPopup {
     try {
       const format = document.querySelector('input[name="format"]:checked')?.value || 'text';
       const includeTimestamps = document.getElementById('includeTimestamps')?.checked || false;
-      
+
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: 'getFormattedTranscript',
@@ -162,7 +162,7 @@ class TranscriptExtractorPopup {
     try {
       const format = document.querySelector('input[name="format"]:checked')?.value || 'text';
       const includeTimestamps = document.getElementById('includeTimestamps')?.checked || false;
-      
+
       const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
       const response = await chrome.tabs.sendMessage(tab.id, {
         action: 'getFormattedTranscript',
@@ -176,7 +176,7 @@ class TranscriptExtractorPopup {
         const sanitizedTitle = videoTitle.replace(/[^a-z0-9]/gi, '-').toLowerCase();
         let extension;
         let mimeType;
-        
+
         if (format === 'markdown') {
           extension = 'md';
           mimeType = 'text/markdown';
@@ -184,18 +184,18 @@ class TranscriptExtractorPopup {
           extension = 'txt';
           mimeType = 'text/plain';
         }
-        
+
         const blob = new Blob([response.formattedTranscript], { type: mimeType });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = `${sanitizedTitle}-transcript.${extension}`;
-        
+
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
         URL.revokeObjectURL(url);
-        
+
         this.showStatus('Download started!', 'success');
       } else {
         throw new Error('Failed to get formatted transcript');
